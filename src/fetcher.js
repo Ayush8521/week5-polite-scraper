@@ -3,15 +3,17 @@ const path = require("path");
 
 const CACHE_DIR = path.join(__dirname, "..", "cache");
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function fetchAndCache(url, cacheFileName) {
     const cachePath = path.join(CACHE_DIR, cacheFileName);
 
-    // Use cache if it already exists
     if (fs.existsSync(cachePath)) {
         const html = fs.readFileSync(cachePath, "utf-8");
 
         console.log(`CACHE HIT: ${url}`);
-        console.log(`Response size: ${Buffer.byteLength(html)} bytes`);
 
         return {
             html,
@@ -42,7 +44,11 @@ async function fetchAndCache(url, cacheFileName) {
 
     fs.writeFileSync(cachePath, html);
 
-    console.log(`Response size: ${Buffer.byteLength(html)} bytes`);
+    console.log(
+        `Fetched ${Buffer.byteLength(html)} bytes`
+    );
+
+    await sleep(500);
 
     return {
         html,
