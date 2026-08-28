@@ -14,7 +14,7 @@ const START_URL =
 async function main() {
 
     // ==========================================
-    // STEP 5: Run statistics
+    // STEP 6: Run statistics
     // ==========================================
 
     const startTime = new Date();
@@ -59,8 +59,11 @@ async function main() {
 
                 // Track cache/fetch statistics
                 if (result.fromCache) {
+
                     cacheHits++;
+
                 } else {
+
                     pagesFetched++;
                 }
 
@@ -110,7 +113,7 @@ async function main() {
                     error.message
                 );
 
-                // Continue to the next page
+                // Continue with next page
                 continue;
             }
         }
@@ -131,6 +134,7 @@ async function main() {
         console.log(
             `unique_urls=${allBookUrls.size}`
         );
+
 
         // ==========================================
         // STEP 2: Extract book details
@@ -167,8 +171,11 @@ async function main() {
 
                 // Track cache/fetch statistics
                 if (result.fromCache) {
+
                     cacheHits++;
+
                 } else {
+
                     pagesFetched++;
                 }
 
@@ -182,11 +189,9 @@ async function main() {
 
                 records.push(book);
 
-
             } catch (error) {
 
                 failedPages++;
-
 
                 console.error(
                     `FAILED book page: ${bookUrl}`
@@ -196,8 +201,7 @@ async function main() {
                     error.message
                 );
 
-
-                // Skip this book and continue
+                // Skip failed book and continue
                 bookNumber++;
 
                 continue;
@@ -265,15 +269,19 @@ async function main() {
         // STEP 5: Save JSON files
         // ==========================================
 
-        const dataDir =
-            path.join(__dirname, "..", "data");
+        const outputDir =
+            path.join(
+                __dirname,
+                "..",
+                "output"
+            );
 
 
-        // Create data directory if it doesn't exist
-        if (!fs.existsSync(dataDir)) {
+        // Create output directory if it doesn't exist
+        if (!fs.existsSync(outputDir)) {
 
             fs.mkdirSync(
-                dataDir,
+                outputDir,
                 {
                     recursive: true
                 }
@@ -285,7 +293,7 @@ async function main() {
         fs.writeFileSync(
 
             path.join(
-                dataDir,
+                outputDir,
                 "books.json"
             ),
 
@@ -301,7 +309,7 @@ async function main() {
         fs.writeFileSync(
 
             path.join(
-                dataDir,
+                outputDir,
                 "errors.json"
             ),
 
@@ -358,23 +366,8 @@ async function main() {
         };
 
 
-        const outputDir =
-            path.join(
-                __dirname,
-                "..",
-                "output"
-            );
-
-
-        if (!fs.existsSync(outputDir)) {
-
-            fs.mkdirSync(
-                outputDir,
-                {
-                    recursive: true
-                }
-            );
-        }
+        // outputDir is already declared in STEP 5.
+        // Reuse it here.
 
 
         fs.writeFileSync(
