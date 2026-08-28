@@ -13,6 +13,17 @@ const START_URL =
 
 async function main() {
 
+    // ==========================================
+    // STEP 5: Run statistics
+    // ==========================================
+
+    const startTime = new Date();
+
+    let pagesFetched = 0;
+    let cacheHits = 0;
+    let failedPages = 0;
+
+
     try {
 
         // ==========================================
@@ -28,49 +39,79 @@ async function main() {
         const allBookUrls = new Map();
 
 
-        for (let pageNumber = 1; pageNumber <= 3; pageNumber++) {
+        for (
+            let pageNumber = 1;
+            pageNumber <= 3;
+            pageNumber++
+        ) {
 
             const cacheFileName =
                 `catalogue-page-${pageNumber}.html`;
 
 
-            const result = await fetchAndCache(
-                currentUrl,
-                cacheFileName
-            );
+            try {
+
+                const result = await fetchAndCache(
+                    currentUrl,
+                    cacheFileName
+                );
 
 
-            const parsed = parseCataloguePage(
-                result.html,
-                currentUrl
-            );
-
-
-            cataloguePages.push(currentUrl);
-
-
-            for (const bookUrl of parsed.bookUrls) {
-
-                if (!allBookUrls.has(bookUrl)) {
-
-                    allBookUrls.set(
-                        bookUrl,
-                        currentUrl
-                    );
+                // Track cache/fetch statistics
+                if (result.fromCache) {
+                    cacheHits++;
+                } else {
+                    pagesFetched++;
                 }
-            }
 
 
-            console.log(
-                `Page ${pageNumber}: ${parsed.bookUrls.length} books`
-            );
+                const parsed = parseCataloguePage(
+                    result.html,
+                    currentUrl
+                );
 
 
-            currentUrl = parsed.nextUrl;
+                cataloguePages.push(currentUrl);
 
 
-            if (!currentUrl) {
-                break;
+                for (const bookUrl of parsed.bookUrls) {
+
+                    if (!allBookUrls.has(bookUrl)) {
+
+                        allBookUrls.set(
+                            bookUrl,
+                            currentUrl
+                        );
+                    }
+                }
+
+
+                console.log(
+                    `Page ${pageNumber}: ${parsed.bookUrls.length} books`
+                );
+
+
+                currentUrl = parsed.nextUrl;
+
+
+                if (!currentUrl) {
+                    break;
+                }
+
+            } catch (error) {
+
+                failedPages++;
+
+                console.error(
+                    `FAILED catalogue page: ${currentUrl}`
+                );
+
+                console.error(
+                    error.message
+                );
+
+                // Continue to the next page
+                continue;
             }
         }
 
@@ -91,7 +132,6 @@ async function main() {
             `unique_urls=${allBookUrls.size}`
         );
 
-
         // ==========================================
         // STEP 2: Extract book details
         // ==========================================
@@ -101,10 +141,13 @@ async function main() {
         let bookNumber = 1;
 
 
-        for (const [bookUrl, sourcePage] of allBookUrls) {
+        for (
+            const [bookUrl, sourcePage]
+            of allBookUrls
+        ) {
 
             console.log(
-                `\nProcessing book ${bookNumber}/60`
+                `\nProcessing book ${bookNumber}/${allBookUrls.size}`
             );
 
             console.log(bookUrl);
@@ -114,20 +157,51 @@ async function main() {
                 `book-${bookNumber}.html`;
 
 
-            const result = await fetchAndCache(
-                bookUrl,
-                cacheFileName
-            );
+            try {
+
+                const result = await fetchAndCache(
+                    bookUrl,
+                    cacheFileName
+                );
 
 
-            const book = extractBook(
-                result.html,
-                bookUrl,
-                sourcePage
-            );
+                // Track cache/fetch statistics
+                if (result.fromCache) {
+                    cacheHits++;
+                } else {
+                    pagesFetched++;
+                }
 
 
-            records.push(book);
+                const book = extractBook(
+                    result.html,
+                    bookUrl,
+                    sourcePage
+                );
+
+
+                records.push(book);
+
+
+            } catch (error) {
+
+                failedPages++;
+
+
+                console.error(
+                    `FAILED book page: ${bookUrl}`
+                );
+
+                console.error(
+                    error.message
+                );
+
+
+                // Skip this book and continue
+                bookNumber++;
+
+                continue;
+            }
 
 
             bookNumber++;
@@ -152,7 +226,11 @@ async function main() {
         const errors = [];
 
 
-        for (let i = 0; i < records.length; i++) {
+        for (
+            let i = 0;
+            i < records.length;
+            i++
+        ) {
 
             const rawBook = records[i];
 
@@ -243,6 +321,80 @@ async function main() {
             `error_records=${errors.length}`
         );
 
+
+        // ==========================================
+        // STEP 6: Run report
+        // ==========================================
+
+        const endTime = new Date();
+
+        const durationMs =
+            endTime.getTime() -
+            startTime.getTime();
+
+
+        const runReport = {
+
+            start_time:
+                startTime.toISOString(),
+
+            duration_ms:
+                durationMs,
+
+            pages_fetched:
+                pagesFetched,
+
+            cache_hits:
+                cacheHits,
+
+            valid_records:
+                validBooks.length,
+
+            invalid_records:
+                errors.length,
+
+            failed_pages:
+                failedPages
+        };
+
+
+        const outputDir =
+            path.join(
+                __dirname,
+                "..",
+                "output"
+            );
+
+
+        if (!fs.existsSync(outputDir)) {
+
+            fs.mkdirSync(
+                outputDir,
+                {
+                    recursive: true
+                }
+            );
+        }
+
+
+        fs.writeFileSync(
+
+            path.join(
+                outputDir,
+                "run-report.json"
+            ),
+
+            JSON.stringify(
+                runReport,
+                null,
+                2
+            )
+        );
+
+
+        console.log(
+            "\nrun-report.json created"
+        );
 
     } catch (error) {
 
