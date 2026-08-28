@@ -1,15 +1,22 @@
 const { fetchAndCache } = require("./fetcher");
 const { parseCataloguePage } = require("./parser");
 const { extractBook } = require("./scraper");
+const { normalizeBook } = require("./normalizer");
+const { bookSchema } = require("./schema");
+
+const fs = require("fs");
+const path = require("path");
 
 const START_URL =
     "https://books.toscrape.com/catalogue/page-1.html";
 
+
 async function main() {
+
     try {
 
         // ==========================================
-        // STEP 1: Discover books
+        // STEP 1: Discover books from 3 catalogue pages
         // ==========================================
 
         let currentUrl = START_URL;
@@ -20,26 +27,32 @@ async function main() {
         // book URL → catalogue page where it was discovered
         const allBookUrls = new Map();
 
+
         for (let pageNumber = 1; pageNumber <= 3; pageNumber++) {
 
             const cacheFileName =
                 `catalogue-page-${pageNumber}.html`;
+
 
             const result = await fetchAndCache(
                 currentUrl,
                 cacheFileName
             );
 
+
             const parsed = parseCataloguePage(
                 result.html,
                 currentUrl
             );
 
+
             cataloguePages.push(currentUrl);
+
 
             for (const bookUrl of parsed.bookUrls) {
 
                 if (!allBookUrls.has(bookUrl)) {
+
                     allBookUrls.set(
                         bookUrl,
                         currentUrl
@@ -47,16 +60,24 @@ async function main() {
                 }
             }
 
+
             console.log(
                 `Page ${pageNumber}: ${parsed.bookUrls.length} books`
             );
 
+
             currentUrl = parsed.nextUrl;
+
 
             if (!currentUrl) {
                 break;
             }
         }
+
+
+        // ==========================================
+        // Discovery Results
+        // ==========================================
 
         console.log(
             `catalogue_pages=${cataloguePages.length}`
@@ -79,6 +100,7 @@ async function main() {
 
         let bookNumber = 1;
 
+
         for (const [bookUrl, sourcePage] of allBookUrls) {
 
             console.log(
@@ -87,13 +109,16 @@ async function main() {
 
             console.log(bookUrl);
 
+
             const cacheFileName =
                 `book-${bookNumber}.html`;
+
 
             const result = await fetchAndCache(
                 bookUrl,
                 cacheFileName
             );
+
 
             const book = extractBook(
                 result.html,
@@ -101,27 +126,123 @@ async function main() {
                 sourcePage
             );
 
+
             records.push(book);
+
 
             bookNumber++;
         }
 
 
         // ==========================================
-        // STEP 3: Check result
+        // STEP 3: Raw extraction completed
         // ==========================================
-
-        console.log(
-            "\n========== SAMPLE RECORD =========="
-        );
-
-        console.log(
-            JSON.stringify(records[0], null, 2)
-        );
 
         console.log(
             `\ndetail_pages=${records.length}`
         );
+
+
+        // ==========================================
+        // STEP 4: Normalize and validate
+        // ==========================================
+
+        const validBooks = [];
+
+        const errors = [];
+
+
+        for (let i = 0; i < records.length; i++) {
+
+            const rawBook = records[i];
+
+
+            // Normalize raw scraped data
+            const normalizedBook =
+                normalizeBook(rawBook);
+
+
+            // Validate normalized data using Zod
+            const result =
+                bookSchema.safeParse(normalizedBook);
+
+
+            if (result.success) {
+
+                // Valid record
+                validBooks.push(result.data);
+
+            } else {
+
+                // Invalid record
+                errors.push({
+                    product_url: rawBook.product_url,
+                    errors: result.error.issues
+                });
+            }
+        }
+
+
+        // ==========================================
+        // STEP 5: Save JSON files
+        // ==========================================
+
+        const dataDir =
+            path.join(__dirname, "..", "data");
+
+
+        // Create data directory if it doesn't exist
+        if (!fs.existsSync(dataDir)) {
+
+            fs.mkdirSync(
+                dataDir,
+                {
+                    recursive: true
+                }
+            );
+        }
+
+
+        // Save valid books
+        fs.writeFileSync(
+
+            path.join(
+                dataDir,
+                "books.json"
+            ),
+
+            JSON.stringify(
+                validBooks,
+                null,
+                2
+            )
+        );
+
+
+        // Save validation errors
+        fs.writeFileSync(
+
+            path.join(
+                dataDir,
+                "errors.json"
+            ),
+
+            JSON.stringify(
+                errors,
+                null,
+                2
+            )
+        );
+
+
+        console.log(
+            `valid_records=${validBooks.length}`
+        );
+
+        console.log(
+            `error_records=${errors.length}`
+        );
+
 
     } catch (error) {
 
@@ -133,5 +254,6 @@ async function main() {
         process.exit(1);
     }
 }
+
 
 main();
